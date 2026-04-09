@@ -166,7 +166,7 @@ A `prune.php` script deletes messages older than 14 days as a safety net for any
 0 3 * * * docker exec aaisp-sms-proxy php /var/www/html/prune.php >> /home/danny/docker/aaisp-sms-proxy/data/prune.log 2>&1
 ```
 
-Under normal operation, `fetch.php` deletes messages immediately after returning them to Groundwire, so the pruner should rarely find anything to remove.
+It also clears stale rate_limit entries older than 1 day. Under normal operation, `fetch.php` deletes messages immediately after returning them to Groundwire, so the pruner should rarely find anything to remove.
 
 ### Apache log sanitisation
 
@@ -193,6 +193,7 @@ Inbound messages are stored in SQLite only until Groundwire fetches them. Once d
 ├── Dockerfile
 ├── docker-compose.yml
 ├── apache.conf             custom log format (strips query strings from access logs)
+├── php.ini                 disables display_errors, enables error logging
 ├── .env                    (not committed — copy from .env.example)
 ├── .env.example
 ├── config/
