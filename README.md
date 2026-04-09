@@ -83,6 +83,36 @@ AAISP retries webhook delivery on a fixed schedule (~30s, 30s, then longer). The
 
 ---
 
+## Fresh deployment
+
+1. Clone the repo and copy the env file:
+   ```bash
+   git clone git@github.com:dannymcc/aaisp-sms-proxy.git
+   cd aaisp-sms-proxy
+   cp .env.example .env
+   # Edit .env with your credentials and tokens
+   ```
+
+2. Create the data directory with correct permissions (uid 33 = www-data inside the container):
+   ```bash
+   mkdir -p data
+   sudo chown 33:33 data
+   sudo chmod 750 data
+   ```
+
+3. Build and start:
+   ```bash
+   docker compose up -d --build
+   ```
+
+4. Configure your reverse proxy (e.g. Caddy) to forward your domain to the container on port 80.
+
+5. Open Groundwire to trigger push token registration, then send a test SMS.
+
+> The container has `restart: unless-stopped` so it will recover automatically from crashes and host reboots. The SQLite tables are created automatically on first use. Push tokens are re-registered by Groundwire the next time the app is opened.
+
+---
+
 ## Adding a new AAISP number
 
 1. Edit `.env` and add:
