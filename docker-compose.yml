@@ -6,6 +6,7 @@ services:
     volumes:
       - ./config:/var/www/html
       - ./data:/var/www/data
+      - ./apache.conf:/etc/apache2/conf-enabled/noquerystring.conf:ro
     env_file:
       - .env
     networks:

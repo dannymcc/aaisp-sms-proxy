@@ -134,15 +134,43 @@ AAISP retries webhook delivery on a fixed schedule (~30s, 30s, then longer). The
 
 ---
 
-## Checking pending messages (diagnostics)
+## Diagnostics and operations
 
-`status.php` shows messages currently queued without deleting them:
+### Health check
+
+`health.php` confirms the container and SQLite database are up:
+
+```
+https://your-domain.example.com/health.php
+```
+
+Returns `{"status":"ok"}` (HTTP 200) when healthy, or `{"status":"error"}` (HTTP 500) if the database is unreachable. Suitable for use with uptime monitors.
+
+### Checking pending messages
+
+`status.php` shows messages currently queued in SQLite without deleting them:
 
 ```
 https://your-domain.example.com/status.php?token=YOUR_SMS_TOKEN
 ```
 
 Returns a JSON array of up to 20 pending messages. If a message appears here but not in Groundwire, wait for the next poll or open the Groundwire messages screen to trigger one immediately.
+
+Rate limited to **10 requests per IP per minute**.
+
+### Message pruning
+
+A `prune.php` script deletes messages older than 14 days as a safety net for any that were never fetched. It is run nightly via cron:
+
+```
+0 3 * * * docker exec aaisp-sms-proxy php /var/www/html/prune.php >> /home/danny/docker/aaisp-sms-proxy/data/prune.log 2>&1
+```
+
+Under normal operation, `fetch.php` deletes messages immediately after returning them to Groundwire, so the pruner should rarely find anything to remove.
+
+### Apache log sanitisation
+
+The container mounts a custom Apache log format that strips query strings from access logs. This prevents tokens from appearing in log output. The format logs the request path (`%U`) without the query string, keeping everything else (IP, method, status, etc.) intact.
 
 ---
 
@@ -154,7 +182,7 @@ See `.env.example` for the full template.
 
 ## Data retention
 
-Inbound messages are stored in SQLite only until Groundwire fetches them. Once delivered, they are deleted automatically. No SMS content is persisted long-term.
+Inbound messages are stored in SQLite only until Groundwire fetches them. Once delivered, they are deleted immediately. A nightly cron job prunes any messages older than 14 days as a safety net. No SMS content is retained indefinitely.
 
 ---
 
@@ -164,6 +192,7 @@ Inbound messages are stored in SQLite only until Groundwire fetches them. Once d
 /
 ├── Dockerfile
 ├── docker-compose.yml
+├── apache.conf             custom log format (strips query strings from access logs)
 ├── .env                    (not committed — copy from .env.example)
 ├── .env.example
 ├── config/
@@ -171,7 +200,15 @@ Inbound messages are stored in SQLite only until Groundwire fetches them. Once d
 │   ├── receive.php         inbound webhook (AAISP → proxy, deduplicates retries)
 │   ├── fetch.php           message fetcher (Groundwire polls this — deletes on read)
 │   ├── push_register.php   stores Groundwire push tokens per account
-│   └── status.php          read-only diagnostic view of pending messages
+│   ├── status.php          read-only diagnostic view of pending messages (rate limited)
+│   ├── health.php          liveness check — returns {"status":"ok"} if DB is reachable
+│   └── prune.php           deletes messages older than 14 days (run via cron)
 └── data/                   (not committed — created at runtime)
     └── messages.db         SQLite store for messages and push tokens
 ```
+
+---
+
+## Licence
+
+MIT. Use for anything, attribution appreciated. No warranty — use at your own risk.
