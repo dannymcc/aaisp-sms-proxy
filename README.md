@@ -22,6 +22,7 @@ Outbound:  Groundwire → index.php → AAISP SMS API → recipient
 Inbound:   sender → AAISP → receive.php → SQLite → fetch.php → Groundwire
 Push:      receive.php → pnm.cloudsoftphone.com → iOS notification → Groundwire
 Token reg: Groundwire → push_register.php → SQLite
+Heartbeat: cron → heartbeat.php → SQLite → fetch.php → Groundwire
 ```
 
 ---
@@ -168,6 +169,20 @@ A `prune.php` script deletes messages older than 14 days as a safety net for any
 
 It also clears stale rate_limit entries older than 1 day. Under normal operation, `fetch.php` deletes messages immediately after returning them to Groundwire, so the pruner should rarely find anything to remove.
 
+### Heartbeat
+
+`heartbeat.php` delivers a message to Groundwire once a day to confirm the server is up and running. It inserts a synthetic inbound message into SQLite (from sender `Heartbeat`) which Groundwire fetches on its next poll. A push notification is also fired if a push token is registered, so the message arrives promptly.
+
+The heartbeat only runs during daytime hours to avoid disturbing you at night. Defaults are 08:00–21:00; adjust with `HEARTBEAT_START_HOUR` / `HEARTBEAT_END_HOUR` in `.env`. Set `HEARTBEAT_ENABLED=false` to disable entirely.
+
+Run via cron at a fixed daytime hour (the script will still do its own window check as a safety net):
+
+```
+0 10 * * * docker exec aaisp-sms-proxy php /var/www/html/heartbeat.php >> /home/danny/docker/aaisp-sms-proxy/data/heartbeat.log 2>&1
+```
+
+The target account is auto-detected from the first `AAISP_*_USERNAME` in `.env`. Override with `HEARTBEAT_ACCOUNT=+44XXXXXXXXXX` if needed.
+
 ### Apache log sanitisation
 
 The container mounts a custom Apache log format that strips query strings from access logs. This prevents tokens from appearing in log output. The format logs the request path (`%U`) without the query string, keeping everything else (IP, method, status, etc.) intact.
@@ -203,7 +218,8 @@ Inbound messages are stored in SQLite only until Groundwire fetches them. Once d
 │   ├── push_register.php   stores Groundwire push tokens per account
 │   ├── status.php          read-only diagnostic view of pending messages (rate limited)
 │   ├── health.php          liveness check — returns {"status":"ok"} if DB is reachable
-│   └── prune.php           deletes messages older than 14 days (run via cron)
+│   ├── prune.php           deletes messages older than 14 days (run via cron)
+│   └── heartbeat.php       delivers a daily confirmation message to Groundwire (run via cron)
 └── data/                   (not committed — created at runtime)
     └── messages.db         SQLite store for messages and push tokens
 ```
