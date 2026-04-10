@@ -22,7 +22,7 @@ Outbound:  Groundwire → index.php → AAISP SMS API → recipient
 Inbound:   sender → AAISP → receive.php → SQLite → fetch.php → Groundwire
 Push:      receive.php → pnm.cloudsoftphone.com → iOS notification → Groundwire
 Token reg: Groundwire → push_register.php → SQLite
-Heartbeat: cron → heartbeat.php → SQLite → fetch.php → Groundwire
+Heartbeat: cron → heartbeat.php → pnm.cloudsoftphone.com → notification → Groundwire
 ```
 
 ---
@@ -171,17 +171,17 @@ It also clears stale rate_limit entries older than 1 day. Under normal operation
 
 ### Heartbeat
 
-`heartbeat.php` delivers a message to Groundwire once a day to confirm the server is up and running. It inserts a synthetic inbound message into SQLite (from sender `Heartbeat`) which Groundwire fetches on its next poll. A push notification is also fired if a push token is registered, so the message arrives promptly.
+`heartbeat.php` sends a push notification to Groundwire once a day to confirm the server is up and running. It uses the `NotifyGenericTextMessage` verb, which delivers a single notification directly without writing to the database or triggering a poll — so no inbox entry is created and no badge count is shown.
 
-The heartbeat only runs during daytime hours to avoid disturbing you at night. Defaults are 08:00–21:00; adjust with `HEARTBEAT_START_HOUR` / `HEARTBEAT_END_HOUR` in `.env`. Set `HEARTBEAT_ENABLED=false` to disable entirely.
+The heartbeat only runs during daytime hours to avoid disturbing you at night. Defaults are 08:00–21:00 in the container's local timezone (`Europe/London`); adjust with `HEARTBEAT_START_HOUR` / `HEARTBEAT_END_HOUR` in `.env`. Set `HEARTBEAT_ENABLED=false` to disable entirely.
 
-Run via cron at a fixed daytime hour (the script will still do its own window check as a safety net):
+Run via cron at a fixed daytime hour (the script does its own window check as a safety net):
 
 ```
-0 10 * * * docker exec aaisp-sms-proxy php /var/www/html/heartbeat.php >> /home/danny/docker/aaisp-sms-proxy/data/heartbeat.log 2>&1
+0 13 * * * docker exec aaisp-sms-proxy php /var/www/html/heartbeat.php >> /home/danny/docker/aaisp-sms-proxy/data/heartbeat.log 2>&1
 ```
 
-The target account is auto-detected from the first `AAISP_*_USERNAME` in `.env`. Override with `HEARTBEAT_ACCOUNT=+44XXXXXXXXXX` if needed.
+The target account is auto-detected from the first `AAISP_*_USERNAME` in the environment. Override with `HEARTBEAT_ACCOUNT=+44XXXXXXXXXX` if needed. A push token must be registered (i.e. Groundwire must have been opened at least once) for the heartbeat to send.
 
 ### Apache log sanitisation
 
@@ -219,7 +219,7 @@ Inbound messages are stored in SQLite only until Groundwire fetches them. Once d
 │   ├── status.php          read-only diagnostic view of pending messages (rate limited)
 │   ├── health.php          liveness check — returns {"status":"ok"} if DB is reachable
 │   ├── prune.php           deletes messages older than 14 days (run via cron)
-│   └── heartbeat.php       delivers a daily confirmation message to Groundwire (run via cron)
+│   └── heartbeat.php       sends a daily push notification to confirm the server is running (run via cron)
 └── data/                   (not committed — created at runtime)
     └── messages.db         SQLite store for messages and push tokens
 ```
