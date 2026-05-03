@@ -1,6 +1,6 @@
 <?php
 $token         = $_GET['token'] ?? '';
-$valid_tokens  = [getenv('RECEIVE_TOKEN'), getenv('RECEIVE_TOKEN_2'), getenv('RECEIVE_TOKEN_3')];
+$valid_tokens  = [getenv('RECEIVE_TOKEN'), getenv('RECEIVE_TOKEN_2'), getenv('RECEIVE_TOKEN_3'), getenv('RECEIVE_TOKEN_4')];
 if (!in_array($token, array_filter($valid_tokens), true)) {
     http_response_code(403);
     exit('Forbidden');
